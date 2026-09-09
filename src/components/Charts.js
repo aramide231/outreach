@@ -56,7 +56,8 @@ export function GoalProgress({ stats }) {
   );
 }
 
-export function WeeklyChart({ weeklySeries }) {
+export function WeeklyChart({ weeklySeries, compact = false }) {
+  const height = compact ? 200 : 260;
   return (
     <div className="panel chart-panel">
       <div className="panel-head">
@@ -66,11 +67,15 @@ export function WeeklyChart({ weeklySeries }) {
         </div>
       </div>
       <div className="chart-body">
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={weeklySeries} barGap={6}>
+        <ResponsiveContainer width="100%" height={height}>
+          <BarChart
+            data={weeklySeries}
+            barGap={compact ? 2 : 6}
+            margin={compact ? { top: 4, right: 4, left: -18, bottom: 0 } : undefined}
+          >
             <CartesianGrid vertical={false} stroke="#eceff3" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} />
-            <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+            <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={28} tick={{ fontSize: 11 }} />
             <Tooltip
               cursor={{ fill: 'rgba(0,0,0,0.04)' }}
               contentStyle={{
@@ -79,7 +84,7 @@ export function WeeklyChart({ weeklySeries }) {
                 boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
               }}
             />
-            <Legend />
+            {!compact ? <Legend /> : null}
             <Bar dataKey="actual" name="Reached" fill="#1a1a1a" radius={[6, 6, 0, 0]} />
             <Bar dataKey="target" name="Target (7)" fill="#d7dbe3" radius={[6, 6, 0, 0]} />
           </BarChart>
@@ -89,7 +94,7 @@ export function WeeklyChart({ weeklySeries }) {
   );
 }
 
-export function StatusDonut({ stats }) {
+export function StatusDonut({ stats, compact = false }) {
   const data = [
     { name: 'Saved', value: stats.saved, color: STATUS_COLORS.saved },
     { name: 'Filled', value: stats.filled, color: STATUS_COLORS.filled },
@@ -100,6 +105,8 @@ export function StatusDonut({ stats }) {
     ? data
     : [{ name: 'No data', value: 1, color: '#e8ebf0' }];
 
+  const chartH = compact ? 150 : 180;
+
   return (
     <div className="panel">
       <div className="panel-head">
@@ -109,14 +116,14 @@ export function StatusDonut({ stats }) {
         </div>
       </div>
       <div className="donut-layout">
-        <div className="donut-chart">
-          <ResponsiveContainer width="100%" height={180}>
+        <div className="donut-chart" style={{ height: chartH }}>
+          <ResponsiveContainer width="100%" height={chartH}>
             <PieChart>
               <Pie
                 data={display}
                 dataKey="value"
-                innerRadius={55}
-                outerRadius={78}
+                innerRadius={compact ? 42 : 55}
+                outerRadius={compact ? 62 : 78}
                 paddingAngle={3}
                 stroke="none"
               >
@@ -155,7 +162,7 @@ export function StatusDonut({ stats }) {
   );
 }
 
-export function MemberBars({ byMember }) {
+export function MemberBars({ byMember, compact = false }) {
   return (
     <div className="panel chart-panel">
       <div className="panel-head">
@@ -165,16 +172,21 @@ export function MemberBars({ byMember }) {
         </div>
       </div>
       <div className="chart-body">
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={byMember} layout="vertical" margin={{ left: 16 }}>
+        <ResponsiveContainer width="100%" height={compact ? 220 : 240}>
+          <BarChart
+            data={byMember}
+            layout="vertical"
+            margin={compact ? { left: 4, right: 8, top: 4, bottom: 4 } : { left: 16 }}
+          >
             <CartesianGrid horizontal={false} stroke="#eceff3" />
-            <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
+            <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
             <YAxis
               type="category"
               dataKey="name"
-              width={80}
+              width={compact ? 64 : 80}
               tickLine={false}
               axisLine={false}
+              tick={{ fontSize: 11 }}
             />
             <Tooltip
               contentStyle={{

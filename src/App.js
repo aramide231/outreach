@@ -6,6 +6,7 @@ import TeamCards from './components/TeamCards';
 import AddSoulForm from './components/AddSoulForm';
 import SoulsTable from './components/SoulsTable';
 import ActivityFeed from './components/ActivityFeed';
+import MobileNav from './components/MobileNav';
 import {
   GoalProgress,
   MemberBars,
@@ -20,21 +21,38 @@ function viewTitle(view, memberId) {
   const scope = member ? member.name : 'Team';
 
   const titles = {
-    dashboard: [`${scope} Dashboard`, 'Analytics + soul recording'],
-    souls: ['Souls Log', 'Full list with Saved / Filled status'],
-    analytics: ['Analytics', 'Weekly pace toward 100 souls'],
-    team: ['Team', 'Progress by reacher'],
-    saved: ['Saved', 'Souls marked as saved'],
-    filled: ['Filled', 'Souls marked as filled'],
-    goals: ['Weekly Goals', 'Track the 7-per-week projection'],
+    dashboard: [`${scope} Home`, 'Track & record souls'],
+    souls: ['Souls Log', 'Names · Saved · Filled'],
+    analytics: ['Analytics', 'Pace toward 100'],
+    team: ['Team', 'Each reacher'],
+    saved: ['Saved', 'Marked saved'],
+    filled: ['Filled', 'Marked filled'],
+    goals: ['Weekly Goals', '7 per week'],
   };
 
   return titles[view] || titles.dashboard;
 }
 
+function useIsPhone(maxWidth = 768) {
+  const [isPhone, setIsPhone] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth <= maxWidth : false
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
+    const update = () => setIsPhone(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [maxWidth]);
+
+  return isPhone;
+}
+
 export default function App() {
   const [view, setView] = useState('dashboard');
   const [menuOpen, setMenuOpen] = useState(false);
+  const isPhone = useIsPhone(768);
   const {
     filteredSouls,
     stats,
@@ -64,8 +82,24 @@ export default function App() {
     return filteredSouls;
   }, [filteredSouls, view]);
 
+  const showTeamCards = !isPhone || view === 'dashboard' || view === 'team';
+  const showGoal = view === 'dashboard' || view === 'analytics' || view === 'goals' || view === 'team';
+  const showCharts =
+    view === 'analytics' ||
+    view === 'goals' ||
+    (!isPhone && (view === 'dashboard' || view === 'team'));
+  const showMemberBars =
+    view === 'team' || view === 'analytics' || (!isPhone && view === 'dashboard');
+  const showActivity = view === 'dashboard' || (!isPhone && view === 'team');
+  const showLog =
+    view === 'souls' ||
+    view === 'saved' ||
+    view === 'filled' ||
+    (!isPhone && view === 'dashboard') ||
+    (isPhone && view === 'dashboard');
+
   return (
-    <div className={`app-shell ${menuOpen ? 'menu-open' : ''}`}>
+    <div className={`app-shell ${menuOpen ? 'menu-open' : ''} ${isPhone ? 'is-phone' : ''}`}>
       <Sidebar
         activeView={view}
         onNavigate={setView}
@@ -83,43 +117,73 @@ export default function App() {
           onMenuOpen={() => setMenuOpen(true)}
         />
 
-        <TeamCards
-          byMember={stats.byMember}
-          activeMemberId={activeMemberId}
-          onSelect={setActiveMemberId}
-        />
+        {showTeamCards ? (
+          <TeamCards
+            byMember={stats.byMember}
+            activeMemberId={activeMemberId}
+            onSelect={setActiveMemberId}
+          />
+        ) : null}
 
-        <GoalProgress stats={stats} />
+        {showGoal ? <GoalProgress stats={stats} /> : null}
 
-        {(view === 'dashboard' || view === 'analytics' || view === 'goals') && (
-          <div className="grid-2">
-            <WeeklyChart weeklySeries={stats.weeklySeries} />
-            <StatusDonut stats={stats} />
+        {isPhone && view === 'dashboard' ? (
+          <div className="phone-home-stats">
+            <div className="stat-tile">
+              <strong>{stats.saved}</strong>
+              <span>Saved</span>
+            </div>
+            <div className="stat-tile">
+              <strong>{stats.filled}</strong>
+              <span>Filled</span>
+            </div>
+            <div className="stat-tile">
+              <strong>{stats.thisWeek}/{stats.weeklyTarget}</strong>
+              <span>This week</span>
+            </div>
           </div>
-        )}
+        ) : null}
 
-        {(view === 'dashboard' || view === 'team' || view === 'analytics') && (
+        {showCharts ? (
           <div className="grid-2">
-            <MemberBars byMember={stats.byMember} />
-            <ActivityFeed items={recentActivity} />
+            <WeeklyChart weeklySeries={stats.weeklySeries} compact={isPhone} />
+            <StatusDonut stats={stats} compact={isPhone} />
           </div>
-        )}
+        ) : null}
 
-        {(view === 'dashboard' ||
-          view === 'souls' ||
-          view === 'saved' ||
-          view === 'filled') && (
+        {showMemberBars ? (
+          <div className={isPhone ? 'stack' : 'grid-2'}>
+            <MemberBars byMember={stats.byMember} compact={isPhone} />
+            {!isPhone ? <ActivityFeed items={recentActivity} /> : null}
+          </div>
+        ) : null}
+
+        {isPhone && showActivity ? <ActivityFeed items={recentActivity} /> : null}
+
+        {showLog ? (
           <div className="grid-form-table">
             <AddSoulForm onAdd={addSoul} defaultReacherId={activeMemberId} />
-            <SoulsTable
-              souls={tableSouls}
-              onToggleSaved={toggleSaved}
-              onToggleFilled={toggleFilled}
-              onDelete={deleteSoul}
-            />
+            {(view !== 'dashboard' || !isPhone) ? (
+              <SoulsTable
+                souls={tableSouls}
+                onToggleSaved={toggleSaved}
+                onToggleFilled={toggleFilled}
+                onDelete={deleteSoul}
+              />
+            ) : (
+              <button
+                type="button"
+                className="primary-btn full-width"
+                onClick={() => setView('souls')}
+              >
+                View full souls log ({filteredSouls.length})
+              </button>
+            )}
           </div>
-        )}
+        ) : null}
       </main>
+
+      <MobileNav activeView={view} onNavigate={setView} />
     </div>
   );
 }
