@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { TEAM } from '../data/constants';
 
 function StatusChecks({ soul, onToggleSaved, onToggleFilled }) {
@@ -29,18 +30,142 @@ function StatusChecks({ soul, onToggleSaved, onToggleFilled }) {
   );
 }
 
+function useDeleteMenu(onDelete) {
+  const [menu, setMenu] = useState(null);
+  const longPressTimer = useRef(null);
+  const longPressTriggered = useRef(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menu) return undefined;
+
+    function close() {
+      setMenu(null);
+    }
+
+    function onKey(e) {
+      if (e.key === 'Escape') close();
+    }
+
+    function onPointerDown(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        close();
+      }
+    }
+
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [menu]);
+
+  function openMenu(soul, clientX, clientY) {
+    const pad = 8;
+    const x = Math.min(clientX, window.innerWidth - 160);
+    const y = Math.min(clientY, window.innerHeight - 80);
+    setMenu({
+      soulId: soul.id,
+      name: soul.name,
+      x: Math.max(pad, x),
+      y: Math.max(pad, y),
+    });
+  }
+
+  function onContextMenu(e, soul) {
+    e.preventDefault();
+    openMenu(soul, e.clientX, e.clientY);
+  }
+
+  function onTouchStart(e, soul) {
+    longPressTriggered.current = false;
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    longPressTimer.current = window.setTimeout(() => {
+      longPressTriggered.current = true;
+      openMenu(soul, touch.clientX, touch.clientY);
+    }, 550);
+  }
+
+  function clearLongPress() {
+    if (longPressTimer.current) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }
+
+  function onTouchEnd(e) {
+    clearLongPress();
+    if (longPressTriggered.current) {
+      e.preventDefault();
+    }
+  }
+
+  function confirmDelete() {
+    if (!menu) return;
+    const ok = window.confirm(`Delete "${menu.name}" from the souls log?`);
+    if (ok) onDelete(menu.soulId);
+    setMenu(null);
+  }
+
+  function Menu() {
+    if (!menu) return null;
+    return (
+      <div
+        ref={menuRef}
+        className="context-menu"
+        style={{ top: menu.y, left: menu.x }}
+        role="menu"
+      >
+        <p className="context-menu-label">{menu.name}</p>
+        <button type="button" className="context-delete" onClick={confirmDelete}>
+          Delete soul
+        </button>
+      </div>
+    );
+  }
+
+  return {
+    Menu,
+    onContextMenu,
+    onTouchStart,
+    onTouchMove: clearLongPress,
+    onTouchEnd,
+    onTouchCancel: clearLongPress,
+  };
+}
+
 export default function SoulsTable({
   souls,
   onToggleSaved,
   onToggleFilled,
   onDelete,
 }) {
+  const {
+    Menu,
+    onContextMenu,
+    onTouchStart,
+    onTouchMove,
+    onTouchEnd,
+    onTouchCancel,
+  } = useDeleteMenu(onDelete);
+
+  const pressHandlers = (soul) => ({
+    onContextMenu: (e) => onContextMenu(e, soul),
+    onTouchStart: (e) => onTouchStart(e, soul),
+    onTouchMove,
+    onTouchEnd,
+    onTouchCancel,
+  });
+
   return (
     <div className="panel table-panel">
       <div className="panel-head">
         <div>
           <h3>Souls Log</h3>
-          <p>Record names · mark Saved / Filled</p>
+          <p>Right-click or long-press a row to delete</p>
         </div>
         <span className="count-pill">{souls.length} listed</span>
       </div>
@@ -50,18 +175,17 @@ export default function SoulsTable({
           <thead>
             <tr>
               <th>Name</th>
-              <th>Reacher</th>
+              <th>Recorded by</th>
               <th>Date</th>
               <th>Saved</th>
               <th>Filled</th>
               <th>Notes</th>
-              <th />
             </tr>
           </thead>
           <tbody>
             {souls.length === 0 ? (
               <tr>
-                <td colSpan={7} className="empty">
+                <td colSpan={6} className="empty">
                   No souls recorded yet. Add the first one below.
                 </td>
               </tr>
@@ -69,7 +193,7 @@ export default function SoulsTable({
               souls.map((soul) => {
                 const reacher = TEAM.find((t) => t.id === soul.reacherId);
                 return (
-                  <tr key={soul.id}>
+                  <tr key={soul.id} className="soul-row" {...pressHandlers(soul)}>
                     <td>
                       <strong>{soul.name}</strong>
                     </td>
@@ -101,15 +225,6 @@ export default function SoulsTable({
                       </label>
                     </td>
                     <td className="notes">{soul.notes || '—'}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="text-danger"
-                        onClick={() => onDelete(soul.id)}
-                      >
-                        Remove
-                      </button>
-                    </td>
                   </tr>
                 );
               })
@@ -125,7 +240,11 @@ export default function SoulsTable({
           souls.map((soul) => {
             const reacher = TEAM.find((t) => t.id === soul.reacherId);
             return (
-              <article className="soul-card" key={soul.id}>
+              <article
+                className="soul-card"
+                key={soul.id}
+                {...pressHandlers(soul)}
+              >
                 <div className="soul-card-top">
                   <div>
                     <strong>{soul.name}</strong>
@@ -134,13 +253,6 @@ export default function SoulsTable({
                       {reacher?.name || '—'} · {soul.date}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    className="text-danger"
-                    onClick={() => onDelete(soul.id)}
-                  >
-                    Remove
-                  </button>
                 </div>
                 <StatusChecks
                   soul={soul}
@@ -153,6 +265,8 @@ export default function SoulsTable({
           })
         )}
       </div>
+
+      <Menu />
     </div>
   );
 }

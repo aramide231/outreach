@@ -3,5 +3,5 @@ import App from './App';
 
 test('renders outreach dashboard', () => {
   render(<App />);
-  expect(screen.getByText(/Soul Tracker/i)).toBeInTheDocument();
+  expect(screen.getByText(/Outreach/i)).toBeInTheDocument();
 });

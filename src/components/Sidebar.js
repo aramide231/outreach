@@ -116,7 +116,6 @@ export default function Sidebar({
             <div className="brand-mark">OS</div>
             <div>
               <strong>Outreach</strong>
-              <span>Soul Tracker</span>
             </div>
           </div>
           <button
@@ -135,7 +134,6 @@ export default function Sidebar({
           <div className="avatar">{activeMember?.initials || 'TM'}</div>
           <div>
             <strong>{activeMember?.name || 'Team View'}</strong>
-            <span>{activeMember ? 'Reacher' : 'All reachers'}</span>
           </div>
         </div>
 
