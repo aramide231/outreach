@@ -30,18 +30,22 @@ export default function AddSoulForm({ onAdd, defaultReacherId }) {
     }));
   }, [defaultReacherId]);
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     if (!form.name.trim()) return;
-    onAdd(form);
-    setForm({
-      ...empty,
-      reacherId:
-        defaultReacherId && defaultReacherId !== 'all'
-          ? defaultReacherId
-          : form.reacherId,
-      date: new Date().toISOString().slice(0, 10),
-    });
+    try {
+      await onAdd(form);
+      setForm({
+        ...empty,
+        reacherId:
+          defaultReacherId && defaultReacherId !== 'all'
+            ? defaultReacherId
+            : form.reacherId,
+        date: new Date().toISOString().slice(0, 10),
+      });
+    } catch {
+      // DbBanner shows the error
+    }
   }
 
   return (
