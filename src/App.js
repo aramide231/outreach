@@ -13,7 +13,7 @@ import {
   StatusDonut,
   WeeklyChart,
 } from './components/Charts';
-import { TEAM } from './data/constants';
+import { TEAM, GOAL_TOTAL } from './data/constants';
 import { useSouls } from './hooks/useSouls';
 
 function viewTitle(view, memberId) {
@@ -76,6 +76,9 @@ export default function App() {
 
   const [title, subtitle] = viewTitle(view, activeMemberId);
 
+  const teamTotal = stats.byMember.reduce((sum, m) => sum + m.total, 0);
+  const amountLeft = Math.max(0, GOAL_TOTAL - teamTotal);
+
   const tableSouls = useMemo(() => {
     if (view === 'saved') return filteredSouls.filter((s) => s.saved);
     if (view === 'filled') return filteredSouls.filter((s) => s.filled);
@@ -115,6 +118,8 @@ export default function App() {
           title={title}
           subtitle={subtitle}
           onMenuOpen={() => setMenuOpen(true)}
+          activeMemberId={activeMemberId}
+          remaining={amountLeft}
         />
 
         {showTeamCards ? (

@@ -1,10 +1,23 @@
+import { TEAM } from '../data/constants';
+
 export default function Header({
   search,
   setSearch,
   title,
   subtitle,
   onMenuOpen,
+  activeMemberId,
+  remaining,
 }) {
+  const activeMember =
+    activeMemberId && activeMemberId !== 'all'
+      ? TEAM.find((t) => t.id === activeMemberId)
+      : null;
+
+  const profileName = activeMember?.name || 'Team View';
+  const initials = activeMember?.initials || 'TM';
+  const color = activeMember?.color || '#141414';
+
   return (
     <header className="topbar">
       <div className="topbar-row">
@@ -32,11 +45,15 @@ export default function Header({
             </svg>
             <span className="dot" />
           </button>
-          <div className="user-chip">
-            <div className="avatar sm">AR</div>
+          <div
+            className="user-chip"
+            style={{ '--profile-color': color }}
+            title={`${profileName} · ${remaining} left`}
+          >
+            <div className="avatar sm profile-avatar">{initials}</div>
             <div className="user-chip-text">
-              <strong>Aramide</strong>
-              <span>100 souls · 2026</span>
+              <strong>{profileName}</strong>
+              <span>{remaining} left</span>
             </div>
           </div>
         </div>

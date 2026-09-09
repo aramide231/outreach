@@ -105,7 +105,7 @@ function useDeleteMenu(onDelete) {
 
   function confirmDelete() {
     if (!menu) return;
-    const ok = window.confirm(`Delete "${menu.name}" from the souls log?`);
+    const ok = window.confirm(`Remove "${menu.name}" from the souls log?`);
     if (ok) onDelete(menu.soulId);
     setMenu(null);
   }
@@ -121,7 +121,7 @@ function useDeleteMenu(onDelete) {
       >
         <p className="context-menu-label">{menu.name}</p>
         <button type="button" className="context-delete" onClick={confirmDelete}>
-          Delete soul
+          Remove
         </button>
       </div>
     );
