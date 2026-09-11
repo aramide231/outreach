@@ -26,7 +26,8 @@ export default function ActivityFeed({ items }) {
                 <div className="activity-tags">
                   {item.saved ? <span className="tag green">Saved</span> : null}
                   {item.filled ? <span className="tag dark">Filled</span> : null}
-                  {!item.saved && !item.filled ? (
+                  {item.healed ? <span className="tag blue">Healed</span> : null}
+                  {!item.saved && !item.filled && !item.healed ? (
                     <span className="tag muted">Pending</span>
                   ) : null}
                   <span className="tag muted">{item.date}</span>

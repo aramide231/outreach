@@ -15,15 +15,19 @@ import {
 const STATUS_COLORS = {
   saved: '#1f9d63',
   filled: '#1a1a1a',
+  healed: '#2563eb',
   pending: '#c5c9d1',
-  both: '#4b5563',
 };
 
 export function GoalProgress({ stats }) {
   return (
     <div className="goal-strip">
       <div>
-        <p className="eyebrow">Year goal</p>
+        <p className="eyebrow">
+          {stats.isTeamView
+            ? `Team goal (${stats.goalPerPerson} each)`
+            : 'Personal goal'}
+        </p>
         <h2>
           {stats.total}
           <span> / {stats.goal}</span>
@@ -98,6 +102,7 @@ export function StatusDonut({ stats, compact = false }) {
   const data = [
     { name: 'Saved', value: stats.saved, color: STATUS_COLORS.saved },
     { name: 'Filled', value: stats.filled, color: STATUS_COLORS.filled },
+    { name: 'Healed', value: stats.healed, color: STATUS_COLORS.healed },
     { name: 'Pending', value: stats.pending, color: STATUS_COLORS.pending },
   ].filter((d) => d.value > 0);
 
@@ -112,7 +117,7 @@ export function StatusDonut({ stats, compact = false }) {
       <div className="panel-head">
         <div>
           <h3>Status Mix</h3>
-          <p>Saved · Filled · Pending</p>
+          <p>Saved · Filled · Healed · Pending</p>
         </div>
       </div>
       <div className="donut-layout">
@@ -149,12 +154,12 @@ export function StatusDonut({ stats, compact = false }) {
             Filled <strong>{stats.filled}</strong>
           </li>
           <li>
-            <span className="swatch" style={{ background: STATUS_COLORS.pending }} />
-            Pending <strong>{stats.pending}</strong>
+            <span className="swatch" style={{ background: STATUS_COLORS.healed }} />
+            Healed <strong>{stats.healed}</strong>
           </li>
           <li>
-            <span className="swatch" style={{ background: STATUS_COLORS.both }} />
-            Both <strong>{stats.both}</strong>
+            <span className="swatch" style={{ background: STATUS_COLORS.pending }} />
+            Pending <strong>{stats.pending}</strong>
           </li>
         </ul>
       </div>

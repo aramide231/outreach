@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 function shade(hex, amount = -20) {
   const raw = hex.replace('#', '');
   const num = parseInt(raw, 16);
@@ -7,7 +9,23 @@ function shade(hex, amount = -20) {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
 
-export default function TeamCards({ byMember, activeMemberId, onSelect }) {
+export default function TeamCards({
+  byMember,
+  activeMemberId,
+  onSelect,
+  onAddProfile,
+}) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState('');
+
+  async function handleAdd(e) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    await onAddProfile(name.trim());
+    setName('');
+    setAdding(false);
+  }
+
   return (
     <section className="team-row">
       <button
@@ -21,7 +39,7 @@ export default function TeamCards({ byMember, activeMemberId, onSelect }) {
       >
         <span className="team-kicker">Overview</span>
         <strong>All Team</strong>
-        <span className="team-meta">Combined progress</span>
+        <span className="team-meta">100 each</span>
       </button>
 
       {byMember.map((member) => {
@@ -40,11 +58,49 @@ export default function TeamCards({ byMember, activeMemberId, onSelect }) {
             <span className="team-kicker">{member.initials}</span>
             <strong>{member.name}</strong>
             <span className="team-meta">
-              {member.total} souls · {member.thisWeek} this week
+              {member.total}/100 · {member.thisWeek} this wk
             </span>
           </button>
         );
       })}
+
+      {adding ? (
+        <form className="team-card add-profile-form" onSubmit={handleAdd}>
+          <span className="team-kicker">New profile</span>
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Bro / Sis name"
+          />
+          <div className="add-profile-actions">
+            <button type="submit" className="mini-btn">
+              Add
+            </button>
+            <button
+              type="button"
+              className="mini-btn ghost"
+              onClick={() => {
+                setAdding(false);
+                setName('');
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button
+          type="button"
+          className="team-card add-card"
+          onClick={() => setAdding(true)}
+          aria-label="Add profile"
+        >
+          <span className="plus-icon">+</span>
+          <strong>Add profile</strong>
+          <span className="team-meta">New reacher · 100 goal</span>
+        </button>
+      )}
     </section>
   );
 }

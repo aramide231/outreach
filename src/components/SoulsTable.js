@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { TEAM } from '../data/constants';
 
-function StatusChecks({ soul, onToggleSaved, onToggleFilled }) {
+function StatusChecks({ soul, onToggleSaved, onToggleFilled, onToggleHealed }) {
   return (
-    <div className="status-checks">
+    <div className="status-checks three">
       <label className="check-row">
         <span className="check-label">Saved</span>
         <span className="check">
@@ -22,6 +21,17 @@ function StatusChecks({ soul, onToggleSaved, onToggleFilled }) {
             type="checkbox"
             checked={soul.filled}
             onChange={() => onToggleFilled(soul.id)}
+          />
+          <span />
+        </span>
+      </label>
+      <label className="check-row">
+        <span className="check-label">Healed</span>
+        <span className="check healed">
+          <input
+            type="checkbox"
+            checked={soul.healed}
+            onChange={() => onToggleHealed(soul.id)}
           />
           <span />
         </span>
@@ -139,8 +149,10 @@ function useDeleteMenu(onDelete) {
 
 export default function SoulsTable({
   souls,
+  team,
   onToggleSaved,
   onToggleFilled,
+  onToggleHealed,
   onDelete,
 }) {
   const {
@@ -165,7 +177,7 @@ export default function SoulsTable({
       <div className="panel-head">
         <div>
           <h3>Souls Log</h3>
-          <p>Right-click or long-press a row to delete</p>
+          <p>Right-click or long-press a row to remove</p>
         </div>
         <span className="count-pill">{souls.length} listed</span>
       </div>
@@ -179,19 +191,20 @@ export default function SoulsTable({
               <th>Date</th>
               <th>Saved</th>
               <th>Filled</th>
+              <th>Healed</th>
               <th>Notes</th>
             </tr>
           </thead>
           <tbody>
             {souls.length === 0 ? (
               <tr>
-                <td colSpan={6} className="empty">
+                <td colSpan={7} className="empty">
                   No souls recorded yet. Add the first one below.
                 </td>
               </tr>
             ) : (
               souls.map((soul) => {
-                const reacher = TEAM.find((t) => t.id === soul.reacherId);
+                const reacher = team.find((t) => t.id === soul.reacherId);
                 return (
                   <tr key={soul.id} className="soul-row" {...pressHandlers(soul)}>
                     <td>
@@ -224,6 +237,16 @@ export default function SoulsTable({
                         <span />
                       </label>
                     </td>
+                    <td>
+                      <label className="check healed">
+                        <input
+                          type="checkbox"
+                          checked={soul.healed}
+                          onChange={() => onToggleHealed(soul.id)}
+                        />
+                        <span />
+                      </label>
+                    </td>
                     <td className="notes">{soul.notes || '—'}</td>
                   </tr>
                 );
@@ -238,7 +261,7 @@ export default function SoulsTable({
           <p className="empty">No souls recorded yet. Add the first one above.</p>
         ) : (
           souls.map((soul) => {
-            const reacher = TEAM.find((t) => t.id === soul.reacherId);
+            const reacher = team.find((t) => t.id === soul.reacherId);
             return (
               <article
                 className="soul-card"
@@ -258,6 +281,7 @@ export default function SoulsTable({
                   soul={soul}
                   onToggleSaved={onToggleSaved}
                   onToggleFilled={onToggleFilled}
+                  onToggleHealed={onToggleHealed}
                 />
                 {soul.notes ? <p className="soul-card-notes">{soul.notes}</p> : null}
               </article>

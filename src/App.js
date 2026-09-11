@@ -13,20 +13,20 @@ import {
   StatusDonut,
   WeeklyChart,
 } from './components/Charts';
-import { TEAM, GOAL_TOTAL } from './data/constants';
 import { useSouls } from './hooks/useSouls';
 
-function viewTitle(view, memberId) {
-  const member = TEAM.find((t) => t.id === memberId);
+function viewTitle(view, memberId, team) {
+  const member = team.find((t) => t.id === memberId);
   const scope = member ? member.name : 'Team';
 
   const titles = {
     dashboard: [`${scope} Home`, 'Track & record souls'],
-    souls: ['Souls Log', 'Names · Saved · Filled'],
-    analytics: ['Analytics', 'Pace toward 100'],
-    team: ['Team', 'Each reacher'],
+    souls: ['Souls Log', 'Saved · Filled · Healed'],
+    analytics: ['Analytics', '100 souls each'],
+    team: ['Team', 'Each reacher · 100 goal'],
     saved: ['Saved', 'Marked saved'],
     filled: ['Filled', 'Marked filled'],
+    healed: ['Healed', 'Marked healed'],
     goals: ['Weekly Goals', '7 per week'],
   };
 
@@ -54,6 +54,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const isPhone = useIsPhone(768);
   const {
+    team,
     filteredSouls,
     stats,
     recentActivity,
@@ -62,9 +63,12 @@ export default function App() {
     search,
     setSearch,
     addSoul,
+    addProfile,
     toggleSaved,
     toggleFilled,
+    toggleHealed,
     deleteSoul,
+    dbError,
   } = useSouls();
 
   useEffect(() => {
@@ -74,14 +78,13 @@ export default function App() {
     };
   }, [menuOpen]);
 
-  const [title, subtitle] = viewTitle(view, activeMemberId);
-
-  const teamTotal = stats.byMember.reduce((sum, m) => sum + m.total, 0);
-  const amountLeft = Math.max(0, GOAL_TOTAL - teamTotal);
+  const [title, subtitle] = viewTitle(view, activeMemberId, team);
+  const amountLeft = stats.remaining;
 
   const tableSouls = useMemo(() => {
     if (view === 'saved') return filteredSouls.filter((s) => s.saved);
     if (view === 'filled') return filteredSouls.filter((s) => s.filled);
+    if (view === 'healed') return filteredSouls.filter((s) => s.healed);
     return filteredSouls;
   }, [filteredSouls, view]);
 
@@ -98,6 +101,7 @@ export default function App() {
     view === 'souls' ||
     view === 'saved' ||
     view === 'filled' ||
+    view === 'healed' ||
     (!isPhone && view === 'dashboard') ||
     (isPhone && view === 'dashboard');
 
@@ -109,6 +113,7 @@ export default function App() {
         activeMemberId={activeMemberId}
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
+        team={team}
       />
 
       <main className="main">
@@ -120,20 +125,29 @@ export default function App() {
           onMenuOpen={() => setMenuOpen(true)}
           activeMemberId={activeMemberId}
           remaining={amountLeft}
+          team={team}
         />
+
+        {dbError ? (
+          <div className="db-banner error">
+            <strong>Database update needed</strong>
+            <span>{dbError}</span>
+          </div>
+        ) : null}
 
         {showTeamCards ? (
           <TeamCards
             byMember={stats.byMember}
             activeMemberId={activeMemberId}
             onSelect={setActiveMemberId}
+            onAddProfile={addProfile}
           />
         ) : null}
 
         {showGoal ? <GoalProgress stats={stats} /> : null}
 
         {isPhone && view === 'dashboard' ? (
-          <div className="phone-home-stats">
+          <div className="phone-home-stats four">
             <div className="stat-tile">
               <strong>{stats.saved}</strong>
               <span>Saved</span>
@@ -141,6 +155,10 @@ export default function App() {
             <div className="stat-tile">
               <strong>{stats.filled}</strong>
               <span>Filled</span>
+            </div>
+            <div className="stat-tile">
+              <strong>{stats.healed}</strong>
+              <span>Healed</span>
             </div>
             <div className="stat-tile">
               <strong>{stats.thisWeek}/{stats.weeklyTarget}</strong>
@@ -167,12 +185,18 @@ export default function App() {
 
         {showLog ? (
           <div className="grid-form-table">
-            <AddSoulForm onAdd={addSoul} defaultReacherId={activeMemberId} />
+            <AddSoulForm
+              onAdd={addSoul}
+              defaultReacherId={activeMemberId}
+              team={team}
+            />
             {(view !== 'dashboard' || !isPhone) ? (
               <SoulsTable
                 souls={tableSouls}
+                team={team}
                 onToggleSaved={toggleSaved}
                 onToggleFilled={toggleFilled}
+                onToggleHealed={toggleHealed}
                 onDelete={deleteSoul}
               />
             ) : (

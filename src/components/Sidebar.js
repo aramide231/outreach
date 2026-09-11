@@ -15,6 +15,7 @@ const NAV = [
     items: [
       { id: 'saved', label: 'Saved', icon: 'check' },
       { id: 'filled', label: 'Filled', icon: 'fill' },
+      { id: 'healed', label: 'Healed', icon: 'target' },
       { id: 'goals', label: 'Weekly Goals', icon: 'target' },
     ],
   },
@@ -92,10 +93,11 @@ export default function Sidebar({
   activeMemberId,
   open,
   onClose,
+  team = TEAM,
 }) {
   const activeMember =
     activeMemberId !== 'all'
-      ? TEAM.find((t) => t.id === activeMemberId)
+      ? team.find((t) => t.id === activeMemberId)
       : null;
 
   function handleNavigate(id) {

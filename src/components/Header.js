@@ -1,5 +1,3 @@
-import { TEAM } from '../data/constants';
-
 export default function Header({
   search,
   setSearch,
@@ -8,10 +6,11 @@ export default function Header({
   onMenuOpen,
   activeMemberId,
   remaining,
+  team = [],
 }) {
   const activeMember =
     activeMemberId && activeMemberId !== 'all'
-      ? TEAM.find((t) => t.id === activeMemberId)
+      ? team.find((t) => t.id === activeMemberId)
       : null;
 
   const profileName = activeMember?.name || 'Team View';

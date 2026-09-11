@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  GOAL_TOTAL,
+  DEFAULT_TEAM,
+  GOAL_PER_PERSON,
+  PROFILE_COLORS,
   STORAGE_KEY,
-  TEAM,
+  TEAM_STORAGE_KEY,
   WEEKLY_TARGET,
+  makeInitials,
+  makeProfileId,
 } from '../data/constants';
 import {
   isSupabaseConfigured,
+  mapProfileFromDb,
+  mapProfileToDb,
   mapSoulFromDb,
   mapSoulToDb,
   supabase,
@@ -16,9 +22,20 @@ function loadLocalSouls() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw);
+    return JSON.parse(raw).map((s) => ({ ...s, healed: Boolean(s.healed) }));
   } catch {
     return [];
+  }
+}
+
+function loadLocalTeam() {
+  try {
+    const raw = localStorage.getItem(TEAM_STORAGE_KEY);
+    if (!raw) return DEFAULT_TEAM;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed : DEFAULT_TEAM;
+  } catch {
+    return DEFAULT_TEAM;
   }
 }
 
@@ -47,11 +64,16 @@ function getWeekNumber(date) {
 export function useSouls() {
   const usingDb = isSupabaseConfigured;
   const [souls, setSouls] = useState(() => (usingDb ? [] : loadLocalSouls()));
+  const [team, setTeam] = useState(loadLocalTeam);
   const [activeMemberId, setActiveMemberId] = useState('all');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(usingDb);
   const [dbError, setDbError] = useState('');
   const [dbReady, setDbReady] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem(TEAM_STORAGE_KEY, JSON.stringify(team));
+  }, [team]);
 
   useEffect(() => {
     if (!usingDb) {
@@ -64,31 +86,50 @@ export function useSouls() {
 
     let cancelled = false;
 
-    async function fetchSouls() {
+    async function fetchAll() {
       setLoading(true);
       setDbError('');
-      const { data, error } = await supabase
-        .from('souls')
-        .select('*')
-        .order('created_at', { ascending: false });
+
+      const [soulsRes, profilesRes] = await Promise.all([
+        supabase.from('souls').select('*').order('created_at', { ascending: false }),
+        supabase.from('profiles').select('*').order('created_at', { ascending: true }),
+      ]);
 
       if (cancelled) return;
 
-      if (error) {
-        setDbError(error.message);
+      if (soulsRes.error) {
+        setDbError(soulsRes.error.message);
         setDbReady(false);
         setLoading(false);
         return;
       }
 
-      setSouls((data || []).map(mapSoulFromDb));
+      if (profilesRes.error) {
+        // profiles table may not exist yet — keep local/default team
+        setDbError(
+          /schema cache|does not exist|Could not find the table/i.test(profilesRes.error.message)
+            ? 'Run supabase/migrate-v2.sql in Supabase (adds Healed + profiles).'
+            : profilesRes.error.message
+        );
+      } else if ((profilesRes.data || []).length > 0) {
+        setTeam(profilesRes.data.map(mapProfileFromDb));
+      } else {
+        // Seed default team into shared DB once
+        const seed = DEFAULT_TEAM.map(mapProfileToDb);
+        const { error: seedError } = await supabase.from('profiles').insert(seed);
+        if (!seedError && !cancelled) setTeam(DEFAULT_TEAM);
+      }
+
+      let mappedSouls = (soulsRes.data || []).map(mapSoulFromDb);
+      // healed missing column → treat as false (older rows)
+      mappedSouls = mappedSouls.map((s) => ({ ...s, healed: Boolean(s.healed) }));
+      setSouls(mappedSouls);
       setDbReady(true);
       setLoading(false);
 
-      // One-time: move any old phone-only local souls into the shared DB
       try {
         const local = loadLocalSouls();
-        if (local.length && (data || []).length === 0) {
+        if (local.length && mappedSouls.length === 0) {
           const rows = local.map(mapSoulToDb);
           const { error: migrateError } = await supabase.from('souls').insert(rows);
           if (!migrateError) {
@@ -103,21 +144,20 @@ export function useSouls() {
           }
         }
       } catch {
-        /* ignore migrate issues */
+        /* ignore */
       }
     }
 
-    fetchSouls();
+    fetchAll();
 
     const channel = supabase
-      .channel('souls-live')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'souls' },
-        () => {
-          fetchSouls();
-        }
-      )
+      .channel('outreach-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'souls' }, () => {
+        fetchAll();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        fetchAll();
+      })
       .subscribe();
 
     return () => {
@@ -125,6 +165,37 @@ export function useSouls() {
       supabase.removeChannel(channel);
     };
   }, [usingDb]);
+
+  const addProfile = useCallback(
+    async (name) => {
+      const trimmed = name.trim();
+      if (!trimmed) return null;
+
+      const profile = {
+        id: makeProfileId(trimmed),
+        name: trimmed,
+        initials: makeInitials(trimmed),
+        color: PROFILE_COLORS[team.length % PROFILE_COLORS.length],
+      };
+
+      setTeam((prev) => [...prev, profile]);
+      setActiveMemberId(profile.id);
+
+      if (usingDb && supabase) {
+        const { error } = await supabase.from('profiles').insert(mapProfileToDb(profile));
+        if (error) {
+          setDbError(
+            /schema cache|does not exist|Could not find the table/i.test(error.message)
+              ? 'Run supabase/migrate-v2.sql in Supabase (adds Healed + profiles).'
+              : error.message
+          );
+        }
+      }
+
+      return profile;
+    },
+    [team.length, usingDb]
+  );
 
   const addSoul = useCallback(
     async (payload) => {
@@ -134,6 +205,7 @@ export function useSouls() {
         reacherId: payload.reacherId,
         saved: Boolean(payload.saved),
         filled: Boolean(payload.filled),
+        healed: Boolean(payload.healed),
         notes: payload.notes?.trim() || '',
         date: payload.date || new Date().toISOString().slice(0, 10),
         createdAt: new Date().toISOString(),
@@ -151,7 +223,11 @@ export function useSouls() {
         .single();
 
       if (error) {
-        setDbError(error.message);
+        setDbError(
+          /healed|schema cache/i.test(error.message)
+            ? 'Run supabase/migrate-v2.sql in Supabase (adds Healed + profiles).'
+            : error.message
+        );
         throw error;
       }
 
@@ -175,11 +251,18 @@ export function useSouls() {
       if ('reacherId' in patch) dbPatch.reacher_id = patch.reacherId;
       if ('saved' in patch) dbPatch.saved = patch.saved;
       if ('filled' in patch) dbPatch.filled = patch.filled;
+      if ('healed' in patch) dbPatch.healed = patch.healed;
       if ('notes' in patch) dbPatch.notes = patch.notes;
       if ('date' in patch) dbPatch.date = patch.date;
 
       const { error } = await supabase.from('souls').update(dbPatch).eq('id', id);
-      if (error) setDbError(error.message);
+      if (error) {
+        setDbError(
+          /healed|schema cache/i.test(error.message)
+            ? 'Run supabase/migrate-v2.sql in Supabase (adds Healed + profiles).'
+            : error.message
+        );
+      }
     },
     [usingDb]
   );
@@ -202,12 +285,19 @@ export function useSouls() {
     [souls, updateSoul]
   );
 
+  const toggleHealed = useCallback(
+    async (id) => {
+      const current = souls.find((s) => s.id === id);
+      if (!current) return;
+      await updateSoul(id, { healed: !current.healed });
+    },
+    [souls, updateSoul]
+  );
+
   const deleteSoul = useCallback(
     async (id) => {
       setSouls((prev) => prev.filter((soul) => soul.id !== id));
-
       if (!usingDb || !supabase) return;
-
       const { error } = await supabase.from('souls').delete().eq('id', id);
       if (error) setDbError(error.message);
     },
@@ -222,10 +312,10 @@ export function useSouls() {
       const matchesSearch =
         !q ||
         soul.name.toLowerCase().includes(q) ||
-        TEAM.find((t) => t.id === soul.reacherId)?.name.toLowerCase().includes(q);
+        team.find((t) => t.id === soul.reacherId)?.name.toLowerCase().includes(q);
       return matchesMember && matchesSearch;
     });
-  }, [souls, activeMemberId, search]);
+  }, [souls, activeMemberId, search, team]);
 
   const stats = useMemo(() => {
     const scoped =
@@ -236,24 +326,44 @@ export function useSouls() {
     const total = scoped.length;
     const saved = scoped.filter((s) => s.saved).length;
     const filled = scoped.filter((s) => s.filled).length;
-    const pending = scoped.filter((s) => !s.saved && !s.filled).length;
-    const both = scoped.filter((s) => s.saved && s.filled).length;
+    const healed = scoped.filter((s) => s.healed).length;
+    const pending = scoped.filter(
+      (s) => !s.saved && !s.filled && !s.healed
+    ).length;
 
     const thisWeekStart = startOfWeek(new Date());
     const thisWeek = scoped.filter(
       (s) => new Date(s.date) >= thisWeekStart
     ).length;
 
-    const byMember = TEAM.map((member) => {
+    const byMember = team.map((member) => {
       const list = souls.filter((s) => s.reacherId === member.id);
+      const memberTotal = list.length;
       return {
         ...member,
-        total: list.length,
+        total: memberTotal,
         saved: list.filter((s) => s.saved).length,
         filled: list.filter((s) => s.filled).length,
+        healed: list.filter((s) => s.healed).length,
         thisWeek: list.filter((s) => new Date(s.date) >= thisWeekStart).length,
+        goal: GOAL_PER_PERSON,
+        remaining: Math.max(0, GOAL_PER_PERSON - memberTotal),
+        progressPct: Math.min(
+          100,
+          Math.round((memberTotal / GOAL_PER_PERSON) * 100)
+        ),
       };
     });
+
+    const memberCount = Math.max(1, team.length);
+    const goal =
+      activeMemberId === 'all'
+        ? GOAL_PER_PERSON * memberCount
+        : GOAL_PER_PERSON;
+    const remaining =
+      activeMemberId === 'all'
+        ? byMember.reduce((sum, m) => sum + m.remaining, 0)
+        : Math.max(0, GOAL_PER_PERSON - total);
 
     const weeksMap = new Map();
     const now = new Date();
@@ -277,8 +387,7 @@ export function useSouls() {
     });
 
     const weeklySeries = Array.from(weeksMap.values());
-    const progressPct = Math.min(100, Math.round((total / GOAL_TOTAL) * 100));
-    const remaining = Math.max(0, GOAL_TOTAL - total);
+    const progressPct = Math.min(100, Math.round((total / goal) * 100));
     const weeksLeft = Math.max(
       1,
       Math.ceil((new Date(now.getFullYear(), 11, 31) - now) / (7 * 86400000))
@@ -289,8 +398,8 @@ export function useSouls() {
       total,
       saved,
       filled,
+      healed,
       pending,
-      both,
       thisWeek,
       byMember,
       weeklySeries,
@@ -298,17 +407,19 @@ export function useSouls() {
       remaining,
       weeksLeft,
       neededPerWeek,
-      goal: GOAL_TOTAL,
+      goal,
+      goalPerPerson: GOAL_PER_PERSON,
       weeklyTarget: WEEKLY_TARGET,
+      isTeamView: activeMemberId === 'all',
     };
-  }, [souls, activeMemberId]);
+  }, [souls, activeMemberId, team]);
 
   const recentActivity = useMemo(() => {
     return [...souls]
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 6)
       .map((soul) => {
-        const reacher = TEAM.find((t) => t.id === soul.reacherId);
+        const reacher = team.find((t) => t.id === soul.reacherId);
         return {
           id: soul.id,
           title: soul.name,
@@ -316,12 +427,14 @@ export function useSouls() {
           date: soul.date,
           saved: soul.saved,
           filled: soul.filled,
+          healed: soul.healed,
         };
       });
-  }, [souls]);
+  }, [souls, team]);
 
   return {
     souls,
+    team,
     filteredSouls,
     stats,
     recentActivity,
@@ -330,9 +443,11 @@ export function useSouls() {
     search,
     setSearch,
     addSoul,
+    addProfile,
     updateSoul,
     toggleSaved,
     toggleFilled,
+    toggleHealed,
     deleteSoul,
     loading,
     dbError,

@@ -48,7 +48,10 @@ export default function MobileNav({ activeView, onNavigate }) {
       {TABS.map((tab) => {
         const active =
           activeView === tab.id ||
-          (tab.id === 'souls' && (activeView === 'saved' || activeView === 'filled')) ||
+          (tab.id === 'souls' &&
+            (activeView === 'saved' ||
+              activeView === 'filled' ||
+              activeView === 'healed')) ||
           (tab.id === 'analytics' && activeView === 'goals');
 
         return (

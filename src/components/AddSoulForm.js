@@ -1,50 +1,46 @@
 import { useEffect, useState } from 'react';
-import { TEAM } from '../data/constants';
 
 const empty = {
   name: '',
-  reacherId: TEAM[0].id,
+  reacherId: '',
   date: new Date().toISOString().slice(0, 10),
   saved: false,
   filled: false,
+  healed: false,
   notes: '',
 };
 
-function resolveReacher(defaultReacherId) {
-  return defaultReacherId && defaultReacherId !== 'all'
-    ? defaultReacherId
-    : TEAM[0].id;
+function resolveReacher(defaultReacherId, team) {
+  if (defaultReacherId && defaultReacherId !== 'all') return defaultReacherId;
+  return team[0]?.id || '';
 }
 
-export default function AddSoulForm({ onAdd, defaultReacherId }) {
+export default function AddSoulForm({ onAdd, defaultReacherId, team }) {
   const [form, setForm] = useState({
     ...empty,
-    reacherId: resolveReacher(defaultReacherId),
+    reacherId: resolveReacher(defaultReacherId, team),
   });
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
     setForm((prev) => ({
       ...prev,
-      reacherId: resolveReacher(defaultReacherId),
+      reacherId: resolveReacher(defaultReacherId, team),
     }));
-  }, [defaultReacherId]);
+  }, [defaultReacherId, team]);
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || !form.reacherId) return;
     try {
       await onAdd(form);
       setForm({
         ...empty,
-        reacherId:
-          defaultReacherId && defaultReacherId !== 'all'
-            ? defaultReacherId
-            : form.reacherId,
+        reacherId: resolveReacher(defaultReacherId, team) || form.reacherId,
         date: new Date().toISOString().slice(0, 10),
       });
     } catch {
-      // DbBanner shows the error
+      /* hook surfaces db errors */
     }
   }
 
@@ -53,7 +49,7 @@ export default function AddSoulForm({ onAdd, defaultReacherId }) {
       <div className="panel-head">
         <div>
           <h3>Record a Soul</h3>
-          <p>Name + Saved / Filled status</p>
+          <p>Saved · Filled · Healed</p>
         </div>
         <button type="button" className="ghost-btn" onClick={() => setOpen((v) => !v)}>
           {open ? 'Hide' : 'Show'}
@@ -73,12 +69,13 @@ export default function AddSoulForm({ onAdd, defaultReacherId }) {
           </label>
 
           <label>
-            Reacher
+            Recorded by
             <select
+              required
               value={form.reacherId}
               onChange={(e) => setForm({ ...form, reacherId: e.target.value })}
             >
-              {TEAM.map((member) => (
+              {team.map((member) => (
                 <option key={member.id} value={member.id}>
                   {member.name}
                 </option>
@@ -95,7 +92,7 @@ export default function AddSoulForm({ onAdd, defaultReacherId }) {
             />
           </label>
 
-          <div className="status-toggles">
+          <div className="status-toggles three">
             <label className="toggle-card">
               <input
                 type="checkbox"
@@ -116,6 +113,17 @@ export default function AddSoulForm({ onAdd, defaultReacherId }) {
               <span>
                 <strong>Filled</strong>
                 Holy Spirit baptism
+              </span>
+            </label>
+            <label className="toggle-card">
+              <input
+                type="checkbox"
+                checked={form.healed}
+                onChange={(e) => setForm({ ...form, healed: e.target.checked })}
+              />
+              <span>
+                <strong>Healed</strong>
+                Received healing
               </span>
             </label>
           </div>
